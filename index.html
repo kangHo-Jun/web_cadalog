@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="products_data.js"></script>
+  <script src="categories_data.js"></script>
   <style>
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
@@ -37,6 +38,11 @@
           class="w-full pl-10 pr-4 py-2 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all text-gray-900 placeholder:text-gray-400"
         />
       </div>
+    </div>
+
+    <!-- Category Tabs -->
+    <div id="categoryTabs" class="flex flex-wrap gap-2">
+      <!-- Categories will be rendered by JavaScript -->
     </div>
 
     <!-- Product Count & Pagination Info -->
@@ -197,15 +203,36 @@
   <div id="bottomSpacer" class="h-24 hidden"></div>
 
   <script>
-    // products is loaded from products_data.js
+    // products and categories are loaded from external JS files
     let cart = [];
     let quantities = {};
     let searchKeyword = '';
     let currentPage = 1;
     let pageSize = 20;
+    let selectedCategory = null;
 
     // Initialize quantities
     products.forEach(p => quantities[p.product_no] = 1);
+
+    // Render category tabs
+    function renderCategories() {
+      const container = document.getElementById('categoryTabs');
+      let html = `<button onclick="filterCategory(null)" class="category-btn px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedCategory === null ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'}">전체</button>`;
+
+      categories.forEach(cat => {
+        html += `<button onclick="filterCategory(${cat.category_no})" class="category-btn px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedCategory === cat.category_no ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'}">${cat.category_name}</button>`;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Filter by category
+    function filterCategory(categoryNo) {
+      selectedCategory = categoryNo;
+      currentPage = 1;
+      renderCategories();
+      renderProducts();
+    }
 
     // Format currency
     function formatPrice(price) {
@@ -215,6 +242,24 @@
     // Get filtered products
     function getFilteredProducts() {
       let filtered = products;
+
+      // Category filter
+      if (selectedCategory !== null) {
+        filtered = filtered.filter(p => {
+          // 상품에 category_no 필드가 있으면 사용
+          if (p.category_no) return p.category_no === selectedCategory;
+          // 없으면 상품명에서 카테고리 키워드 검색
+          const cat = categories.find(c => c.category_no === selectedCategory);
+          if (cat) {
+            const name = p.product_name.toLowerCase();
+            const catName = cat.category_name.toLowerCase();
+            return name.includes(catName) || name.includes(catName.split('/')[0]);
+          }
+          return false;
+        });
+      }
+
+      // Search filter
       if (searchKeyword) {
         const keyword = searchKeyword.toLowerCase();
         filtered = filtered.filter(p =>
@@ -512,6 +557,7 @@
     }
 
     // Initialize
+    renderCategories();
     renderProducts();
     lucide.createIcons();
   </script>
