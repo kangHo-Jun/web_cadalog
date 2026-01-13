@@ -6,6 +6,7 @@
   <title>제품 카탈로그 - 대장간</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="products_data.js"></script>
   <style>
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
@@ -38,20 +39,17 @@
       </div>
     </div>
 
-    <!-- Category Tabs -->
-    <div id="categoryTabs" class="flex flex-wrap gap-2">
-      <button onclick="filterCategory(null)" class="category-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all bg-blue-600 text-white shadow-md">
-        전체
-      </button>
-      <button onclick="filterCategory('철물')" class="category-btn px-4 py-2 rounded-lg text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200">
-        철물
-      </button>
-      <button onclick="filterCategory('공구')" class="category-btn px-4 py-2 rounded-lg text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200">
-        공구
-      </button>
-      <button onclick="filterCategory('부품')" class="category-btn px-4 py-2 rounded-lg text-sm font-medium transition-all bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200">
-        부품
-      </button>
+    <!-- Product Count & Pagination Info -->
+    <div id="productInfo" class="flex items-center justify-between">
+      <p class="text-gray-600 text-sm">총 <span id="totalCount" class="font-bold text-blue-600">0</span>개 상품</p>
+      <div class="flex items-center gap-2">
+        <span class="text-sm text-gray-500">페이지당</span>
+        <select id="pageSize" onchange="changePageSize()" class="px-3 py-1 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+          <option value="20">20개</option>
+          <option value="50">50개</option>
+          <option value="100">100개</option>
+        </select>
+      </div>
     </div>
 
     <!-- Table Container -->
@@ -73,6 +71,9 @@
         </table>
       </div>
     </div>
+
+    <!-- Pagination -->
+    <div id="pagination"></div>
   </div>
 
   <!-- Quote Bar (Fixed Bottom) -->
@@ -196,26 +197,12 @@
   <div id="bottomSpacer" class="h-24 hidden"></div>
 
   <script>
-    // Sample product data
-    const products = [
-      { product_no: 1, product_name: "스테인레스 육각볼트 M10x30", product_code: "BOLT-SS-M10", price: 1500, category: "철물", detail_image: "" },
-      { product_no: 2, product_name: "고강도 육각너트 M10", product_code: "NUT-HG-M10", price: 800, category: "철물", detail_image: "" },
-      { product_no: 3, product_name: "스프링와셔 M10", product_code: "WASH-SP-M10", price: 300, category: "철물", detail_image: "" },
-      { product_no: 4, product_name: "전동드릴 18V 충전식", product_code: "DRILL-18V-01", price: 89000, category: "공구", detail_image: "" },
-      { product_no: 5, product_name: "임팩트 드라이버 세트", product_code: "IMPACT-SET-01", price: 125000, category: "공구", detail_image: "" },
-      { product_no: 6, product_name: "정밀 드라이버 세트 (6종)", product_code: "DRIVER-SET-6", price: 15000, category: "공구", detail_image: "" },
-      { product_no: 7, product_name: "베어링 6205-2RS", product_code: "BEAR-6205", price: 4500, category: "부품", detail_image: "" },
-      { product_no: 8, product_name: "타이밍벨트 HTD-5M-450", product_code: "BELT-HTD-450", price: 12000, category: "부품", detail_image: "" },
-      { product_no: 9, product_name: "커플링 플렉시블 8mm", product_code: "COUP-FLEX-8", price: 8500, category: "부품", detail_image: "" },
-      { product_no: 10, product_name: "리니어 가이드 MGN12H", product_code: "LG-MGN12H", price: 25000, category: "부품", detail_image: "" },
-      { product_no: 11, product_name: "앵커볼트 M12x100", product_code: "ANCHOR-M12", price: 2800, category: "철물", detail_image: "" },
-      { product_no: 12, product_name: "토크렌치 20-100Nm", product_code: "TORQUE-100", price: 78000, category: "공구", detail_image: "" },
-    ];
-
+    // products is loaded from products_data.js
     let cart = [];
     let quantities = {};
-    let currentCategory = null;
     let searchKeyword = '';
+    let currentPage = 1;
+    let pageSize = 20;
 
     // Initialize quantities
     products.forEach(p => quantities[p.product_no] = 1);
@@ -225,17 +212,31 @@
       return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(price);
     }
 
-    // Render products
+    // Get filtered products
+    function getFilteredProducts() {
+      let filtered = products;
+      if (searchKeyword) {
+        const keyword = searchKeyword.toLowerCase();
+        filtered = filtered.filter(p =>
+          p.product_name.toLowerCase().includes(keyword) ||
+          p.product_code.toLowerCase().includes(keyword)
+        );
+      }
+      return filtered;
+    }
+
+    // Render products with pagination
     function renderProducts() {
       const tbody = document.getElementById('productTable');
-      let filtered = products;
+      const filtered = getFilteredProducts();
 
-      if (currentCategory) {
-        filtered = filtered.filter(p => p.category === currentCategory);
-      }
-      if (searchKeyword) {
-        filtered = filtered.filter(p => p.product_name.toLowerCase().includes(searchKeyword.toLowerCase()));
-      }
+      // Update total count
+      document.getElementById('totalCount').textContent = filtered.length;
+
+      // Paginate
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const pageProducts = filtered.slice(startIndex, endIndex);
 
       if (filtered.length === 0) {
         tbody.innerHTML = `
@@ -245,17 +246,21 @@
             </td>
           </tr>
         `;
+        renderPagination(0);
         return;
       }
 
-      tbody.innerHTML = filtered.map(product => {
+      tbody.innerHTML = pageProducts.map(product => {
         const isInCart = cart.some(item => item.product.product_no === product.product_no);
+        const price = parseFloat(product.price) || 0;
+        const priceDisplay = price > 0 ? formatPrice(price) : '<span class="text-gray-400">가격문의</span>';
+
         return `
           <tr class="hover:bg-blue-50/50 transition-colors group ${isInCart ? 'bg-green-50' : ''}">
             <td class="px-6 py-4">
               <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0 border border-gray-200 flex items-center justify-center text-xs text-gray-400">
-                  ${product.detail_image ? `<img src="${product.detail_image}" alt="${product.product_name}" class="w-full h-full object-cover" />` : '이미지'}
+                  ${product.detail_image ? `<img src="${product.detail_image}" alt="" class="w-full h-full object-cover" onerror="this.style.display='none'" />` : ''}
                 </div>
                 <span class="font-semibold text-sm text-gray-900 group-hover:text-blue-600 transition-colors">
                   ${product.product_name}
@@ -263,7 +268,7 @@
               </div>
             </td>
             <td class="px-6 py-4 text-sm text-gray-500 font-mono">${product.product_code}</td>
-            <td class="px-6 py-4 font-bold text-gray-900 whitespace-nowrap">${formatPrice(product.price)}</td>
+            <td class="px-6 py-4 font-bold text-gray-900 whitespace-nowrap">${priceDisplay}</td>
             <td class="px-6 py-4">
               <div class="flex items-center gap-2 bg-gray-100 w-fit rounded-lg p-1 border border-gray-200">
                 <button onclick="updateQuantity(${product.product_no}, -1)" class="p-1.5 hover:bg-white rounded transition-colors text-gray-600">
@@ -285,7 +290,71 @@
         `;
       }).join('');
 
+      renderPagination(filtered.length);
       lucide.createIcons();
+    }
+
+    // Render pagination
+    function renderPagination(totalItems) {
+      const totalPages = Math.ceil(totalItems / pageSize);
+      const container = document.getElementById('pagination');
+      if (!container) return;
+
+      if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+
+      let html = '<div class="flex items-center justify-center gap-2 mt-6">';
+
+      // Previous button
+      html += `<button onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}
+        class="px-3 py-1 rounded-lg border ${currentPage === 1 ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-100'}">
+        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+      </button>`;
+
+      // Page numbers
+      const startPage = Math.max(1, currentPage - 2);
+      const endPage = Math.min(totalPages, currentPage + 2);
+
+      if (startPage > 1) {
+        html += `<button onclick="goToPage(1)" class="px-3 py-1 rounded-lg border hover:bg-gray-100">1</button>`;
+        if (startPage > 2) html += `<span class="px-2">...</span>`;
+      }
+
+      for (let i = startPage; i <= endPage; i++) {
+        html += `<button onclick="goToPage(${i})"
+          class="px-3 py-1 rounded-lg border ${i === currentPage ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}">${i}</button>`;
+      }
+
+      if (endPage < totalPages) {
+        if (endPage < totalPages - 1) html += `<span class="px-2">...</span>`;
+        html += `<button onclick="goToPage(${totalPages})" class="px-3 py-1 rounded-lg border hover:bg-gray-100">${totalPages}</button>`;
+      }
+
+      // Next button
+      html += `<button onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}
+        class="px-3 py-1 rounded-lg border ${currentPage === totalPages ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-100'}">
+        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+      </button>`;
+
+      html += '</div>';
+      container.innerHTML = html;
+      lucide.createIcons();
+    }
+
+    function goToPage(page) {
+      const totalPages = Math.ceil(getFilteredProducts().length / pageSize);
+      if (page < 1 || page > totalPages) return;
+      currentPage = page;
+      renderProducts();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function changePageSize() {
+      pageSize = parseInt(document.getElementById('pageSize').value);
+      currentPage = 1;
+      renderProducts();
     }
 
     // Update quantity
@@ -347,7 +416,7 @@
 
         const totalItems = cart.length;
         const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
-        const totalAmount = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+        const totalAmount = cart.reduce((sum, item) => sum + (parseFloat(item.product.price) || 0) * item.quantity, 0);
 
         document.getElementById('cartCount').textContent = `${totalItems}개`;
         document.getElementById('cartQuantity').textContent = `${totalQty}개`;
@@ -360,25 +429,15 @@
       lucide.createIcons();
     }
 
-    // Filter by category
-    function filterCategory(category) {
-      currentCategory = category;
-
-      document.querySelectorAll('.category-btn').forEach(btn => {
-        btn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
-        btn.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200', 'border', 'border-gray-200');
-      });
-
-      event.target.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200', 'border', 'border-gray-200');
-      event.target.classList.add('bg-blue-600', 'text-white', 'shadow-md');
-
-      renderProducts();
-    }
-
-    // Search
+    // Search with debounce
+    let searchTimeout;
     document.getElementById('searchInput').addEventListener('input', (e) => {
-      searchKeyword = e.target.value;
-      renderProducts();
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        searchKeyword = e.target.value;
+        currentPage = 1;
+        renderProducts();
+      }, 300);
     });
 
     // Modal functions
@@ -393,12 +452,15 @@
 
     function renderModalCart() {
       const tbody = document.getElementById('modalCartItems');
-      const totalAmount = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+      const totalAmount = cart.reduce((sum, item) => sum + (parseFloat(item.product.price) || 0) * item.quantity, 0);
 
-      tbody.innerHTML = cart.map(item => `
+      tbody.innerHTML = cart.map(item => {
+        const price = parseFloat(item.product.price) || 0;
+        const subtotal = price * item.quantity;
+        return `
         <tr class="hover:bg-gray-50">
           <td class="px-4 py-3 text-gray-900 font-medium">${item.product.product_name}</td>
-          <td class="px-4 py-3 text-right text-gray-700">${item.product.price.toLocaleString('ko-KR')}원</td>
+          <td class="px-4 py-3 text-right text-gray-700">${price > 0 ? price.toLocaleString('ko-KR') + '원' : '가격문의'}</td>
           <td class="px-4 py-3">
             <div class="flex items-center justify-center gap-1">
               <button onclick="updateCartQuantity(${item.product.product_no}, -1)" class="p-1 hover:bg-gray-200 rounded text-gray-600">
@@ -410,14 +472,14 @@
               </button>
             </div>
           </td>
-          <td class="px-4 py-3 text-right font-bold text-gray-900">${(item.product.price * item.quantity).toLocaleString('ko-KR')}원</td>
+          <td class="px-4 py-3 text-right font-bold text-gray-900">${subtotal > 0 ? subtotal.toLocaleString('ko-KR') + '원' : '-'}</td>
           <td class="px-4 py-3">
             <button onclick="removeFromCart(${item.product.product_no})" class="p-1 hover:bg-red-100 text-red-500 rounded">
               <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
           </td>
         </tr>
-      `).join('');
+      `}).join('');
 
       document.getElementById('modalTotal').textContent = `${totalAmount.toLocaleString('ko-KR')}원`;
       lucide.createIcons();
@@ -434,7 +496,7 @@
         return;
       }
 
-      const totalAmount = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+      const totalAmount = cart.reduce((sum, item) => sum + (parseFloat(item.product.price) || 0) * item.quantity, 0);
 
       alert(`견적 요청이 접수되었습니다!\n\n담당자가 ${email}로 견적서를 보내드립니다.\n\n선택 품목: ${cart.length}개\n총 금액: ${totalAmount.toLocaleString('ko-KR')}원`);
 
